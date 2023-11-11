@@ -147,7 +147,7 @@ static void *find_fit(size_t asize)
     return NULL; // 맞는 사이즈가 없으면
 }
 
-static void *place(void *bp, size_t asize)
+static void place(void *bp, size_t asize)
 {
     size_t csize = GET_SIZE(HDRP(bp));
 
