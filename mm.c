@@ -116,7 +116,8 @@ static void *extend_heap(size_t words) // 워드 사이즈로 인자 받음
     return coalesce(bp); // 이전 블록 가용이면 새 블록과 연결하기
 }
 
-static void* heap_listp ; // 힙 포인터 전역 변수 선언
+static void* heap_listp ; // 힙 포인터 정적 전역 변수 선언
+
 int mm_init(void)    
 {
     if ((heap_listp = mem_sbrk(4*WSIZE)) == (void*)-1) // 힙 생성 체크
@@ -134,22 +135,68 @@ int mm_init(void)
     return 0; // 성공하면
 }
 
+static void *find_fit(size_t asize)
+{
+    void *bp;
 
+    for (bp = heap_listp; GET_SIZE(HDRP(bp)) > 0; bp = NEXT_BLKP(bp)) { // 왜 프롤로그 블록부터 확인??
+        if (!GET_ALLOC(HDRP(bp)) && (asize <= GET_SIZE(HDRP(bp)))) { // 확인하는 블록이 가용이고 요청 사이즈를 수용하면
+            return bp; // 해당 블록 데이터 시작 주소 반환
+        }
+    }
+    return NULL; // 맞는 사이즈가 없으면
+}
+
+static void place(void *bp, size_t asize)
+{
+    size_t csize = GET_SIZE(HDRP(bp));
+
+    if ((csize-asize) >= (2*DSIZE)) {
+        PUT(HDRP(bp), PACK(asize, 1));
+        PUT(FTRP(bp), PACK(asize, 1));
+        bp = NEXT_BLKP(bp);
+        PUT(HDRP(bp), PACK(csize-asize, 0));
+        PUT(FDRP(bp), PACK(csize-asize, 0));
+    }
+    else {
+        PUT(HDRP(bp), PACK(csize, 1));
+        PUT(FDRP(bp), PACK(csize, 1));
+    }
+}
 
 /* 
  * mm_malloc - Allocate a block by incrementing the brk pointer.
  *     Always allocate a block whose size is a multiple of the alignment.
  */
+
 void *mm_malloc(size_t size)
 {
-    int newsize = ALIGN(size + SIZE_T_SIZE);
-    void *p = mem_sbrk(newsize);
+    int newsize = ALIGN(size + SIZE_T_SIZE); // 더블 워드 정렬 //왜 int형으로?
+    size_t extendsize; // 기존 블록에 맞는 가용이 없으면 힙 확장
+    void *p = mem_sbrk(newsize); // 기존 블록의 마지막 워드 포인터??
     if (p == (void *)-1)
 	return NULL;
     else {
-        *(size_t *)p = size;
-        return (void *)((char *)p + SIZE_T_SIZE);
+        *(size_t *)p = size; // 기존 블록 사이즈
+        return (void *)((char *)p + SIZE_T_SIZE); // 다음 블록 데이터 포인터??
     }
+
+    if (size == 0) // 요청 사이즈가 0이면 무시
+        return NULL;
+    
+    // 사이즈 정렬은 newsize로 대체 가능??
+
+    if ((p = find_fit(newsize)) != NULL) { // 기존 블록에 맞는 가용 사이즈가 있으면
+        place(p, newsize); //
+        return p; 
+    }
+
+    //기존 블록에 맞는 가용 사이즈가 없으면
+    extendsize = MAX(newsize, CHUNKSIZE); // newsize와 4KB중 큰 것을 선택해서
+    if ((p = extend_heap(extendsize/WSIZE)) == NULL) // 힙 영역 확장(인자는 워드로 넘김)
+        return NULL;    // 실패하면
+    place(p, newsize);  // 성공하면
+    return p;
 }
 
 /*
@@ -184,17 +231,3 @@ void *mm_realloc(void *ptr, size_t size)
     mm_free(oldptr);
     return newptr;
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
