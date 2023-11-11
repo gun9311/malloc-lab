@@ -147,20 +147,20 @@ static void *find_fit(size_t asize)
     return NULL; // 맞는 사이즈가 없으면
 }
 
-static void place(void *bp, size_t asize)
+static void *place(void *bp, size_t asize)
 {
     size_t csize = GET_SIZE(HDRP(bp));
 
-    if ((csize-asize) >= (2*DSIZE)) {
-        PUT(HDRP(bp), PACK(asize, 1));
-        PUT(FTRP(bp), PACK(asize, 1));
-        bp = NEXT_BLKP(bp);
-        PUT(HDRP(bp), PACK(csize-asize, 0));
-        PUT(FDRP(bp), PACK(csize-asize, 0));
+    if ((csize-asize) >= (2*DSIZE)) { // 가용블록 사이즈 - 요청 사이즈 >= 4워드면
+        PUT(HDRP(bp), PACK(asize, 1)); // 요청 사이즈 만큼만 블록 할당하고 헤더 세팅
+        PUT(FTRP(bp), PACK(asize, 1)); // 풋터 세팅
+        bp = NEXT_BLKP(bp); // 할당하고 남는 부분으로 주소 포인터 이동
+        PUT(HDRP(bp), PACK(csize-asize, 0)); // 남는 블록 헤더 세팅
+        PUT(FTRP(bp), PACK(csize-asize, 0)); // 남는 블록 풋터 세팅
     }
-    else {
-        PUT(HDRP(bp), PACK(csize, 1));
-        PUT(FDRP(bp), PACK(csize, 1));
+    else {                             // 가용블록 사이즈 - 요청 사이즈 < 4워드면
+        PUT(HDRP(bp), PACK(csize, 1)); // 가용블록 전체를 할당하고 헤더세팅
+        PUT(FTRP(bp), PACK(csize, 1)); // 풋터세팅
     }
 }
 
